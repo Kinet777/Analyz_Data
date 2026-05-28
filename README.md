@@ -133,8 +133,24 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze-url" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/video","fps":1,"whisper_model":"tiny"}'
+  -d '{"url":"https://example.com/video","fps":1,"whisper_model":"tiny","download_quality":"best[height<=480]/worst"}'
 ```
+
+Для быстрого анализа по ссылке сервер по умолчанию скачивает версию не выше 480p.
+Если нужна максимальная четкость кадров, можно передать `"download_quality":"best"`,
+но загрузка и анализ будут дольше.
+
+Быстрая проверка API без долгого Whisper и без анализа всего видео:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/analyze-url" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://rutube.ru/video/de671c5c7bdceba541ddc7d0d24c9b9c/","fps":0.2,"whisper_model":"tiny","analyze_audio":false,"max_frames":10,"download_quality":"worst"}'
+```
+
+Параметр `max_frames` ограничивает количество кадров, которые пойдут в OCR/YOLO/ResNet/LLM.
+Параметр `analyze_audio:false` отключает извлечение аудио и Whisper, что особенно полезно для
+быстрой демонстрации на слабой ВМ.
 
 Ответ сервера - это JSON-отчет. То есть для сдачи развернутое решение может работать именно так: вы отправляете запрос на сервер, а сервер возвращает результат в терминал или любому клиентскому приложению.
 
@@ -219,7 +235,8 @@ curl http://IP_АДРЕС_СЕРВЕРА:8000/health
 nano /etc/systemd/system/video-analysis.service
 ```
 
-Вставьте, заменив путь `/root/ВАШ_РЕПОЗИТОРИЙ` на реальную папку проекта:
+Вставьте, заменив путь `/root/ВАШ_РЕПОЗИТОРИЙ` на реальную папку проекта.
+Например, если проект лежит в `/root/Analyz_Data`, используйте именно этот путь:
 
 ```ini
 [Unit]
@@ -227,15 +244,19 @@ Description=Video Analysis Course API
 After=network.target
 
 [Service]
-WorkingDirectory=/root/ВАШ_РЕПОЗИТОРИЙ
+WorkingDirectory=/root/Analyz_Data
 EnvironmentFile=-/root/video-analysis.env
-ExecStart=/root/ВАШ_РЕПОЗИТОРИЙ/venv/bin/uvicorn server:app --host 0.0.0.0 --port 8000
+ExecStart=/root/Analyz_Data/venv/bin/uvicorn server:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Если `systemctl status video-analysis` показывает `status=200/CHDIR`, значит
+`WorkingDirectory` указывает на папку, которой нет на сервере. Проверьте путь командой
+`pwd` внутри папки проекта и вставьте получившееся значение в `WorkingDirectory`.
 
 Запустите сервис:
 
@@ -282,5 +303,3 @@ git push -u origin main
 
 - CLI: `python main.py --video ./test.mp4 --fps 1`.
 - Развернутый API: `curl -X POST http://IP:8000/analyze -F video=@./test.mp4`.
-
-

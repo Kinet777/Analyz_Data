@@ -1,4 +1,5 @@
 import datetime
+from functools import lru_cache
 import json
 import os
 
@@ -11,6 +12,26 @@ from llm_analyzer import LLMAnalyzer
 from postprocessor import PostProcessor
 from video_utils import download_video, extract_audio, extract_frames
 from vision_analyzer import VisionAnalyzer
+
+
+@lru_cache(maxsize=4)
+def _get_audio_analyzer(model_size):
+    return AudioAnalyzer(model_size=model_size)
+
+
+@lru_cache(maxsize=1)
+def _get_vision_analyzer():
+    return VisionAnalyzer()
+
+
+@lru_cache(maxsize=1)
+def _get_llm_analyzer():
+    return LLMAnalyzer()
+
+
+@lru_cache(maxsize=1)
+def _get_postprocessor():
+    return PostProcessor()
 
 
 def _get_video_info(video_path):
@@ -31,7 +52,16 @@ def _get_video_info(video_path):
     }
 
 
-def run_analysis(video, is_url=False, fps=1.0, output_dir="results", whisper_model="base"):
+def run_analysis(
+    video,
+    is_url=False,
+    fps=1.0,
+    output_dir="results",
+    whisper_model="base",
+    download_quality="best[height<=480]/worst",
+    analyze_audio=True,
+    max_frames=None,
+):
     """Runs the full course-work video analysis pipeline and returns the report."""
     os.makedirs(output_dir, exist_ok=True)
     frames_dir = os.path.join(output_dir, "frames")
@@ -39,23 +69,36 @@ def run_analysis(video, is_url=False, fps=1.0, output_dir="results", whisper_mod
     video_path = video
     if is_url:
         print(f"Загрузка видео по URL: {video} ...")
-        video_path = download_video(video, output=os.path.join(output_dir, "downloaded.mp4"))
+        video_path = download_video(
+            video,
+            quality=download_quality,
+            output=os.path.join(output_dir, "downloaded.mp4"),
+        )
 
     audio_path = os.path.join(output_dir, "audio.wav")
-    extracted_audio = extract_audio(video_path, audio_path)
+    extracted_audio = extract_audio(video_path, audio_path) if analyze_audio else None
 
     print("Нарезка видео на кадры...")
-    frames = extract_frames(video_path, frames_dir, frame_rate=fps)
+    frames = extract_frames(video_path, frames_dir, frame_rate=fps, max_frames=max_frames)
+    if max_frames is not None:
+        print(f"Быстрый режим: анализируются первые {len(frames)} кадров.")
     source_info = _get_video_info(video_path)
+    source_info["requested_fps"] = fps
+    source_info["frames_extracted"] = len(frames)
+    source_info["max_frames"] = max_frames
+    source_info["audio_analysis_enabled"] = analyze_audio
 
-    audio_analyzer = AudioAnalyzer(model_size=whisper_model)
-    vision_analyzer = VisionAnalyzer()
-    llm_analyzer = LLMAnalyzer()
-    postprocessor = PostProcessor()
+    vision_analyzer = _get_vision_analyzer()
+    llm_analyzer = _get_llm_analyzer()
+    postprocessor = _get_postprocessor()
 
-    audio_segments = audio_analyzer.transcribe(extracted_audio)
-    trigger_words = ["оружие", "убить", "бомба", "взрыв", "кровь", "драка", "сука", "бля", "черт"]
-    audio_alerts = audio_analyzer.find_trigger_words(audio_segments, trigger_words)
+    audio_segments = []
+    audio_alerts = []
+    if extracted_audio:
+        audio_analyzer = _get_audio_analyzer(whisper_model)
+        audio_segments = audio_analyzer.transcribe(extracted_audio)
+        trigger_words = ["оружие", "убить", "бомба", "взрыв", "кровь", "драка", "сука", "бля", "черт"]
+        audio_alerts = audio_analyzer.find_trigger_words(audio_segments, trigger_words)
 
     frames_data = {}
     print(f"Начало анализа {len(frames)} кадров...")

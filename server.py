@@ -21,6 +21,19 @@ class UrlAnalyzeRequest(BaseModel):
     url: str = Field(..., description="URL видео для yt-dlp")
     fps: float = Field(1.0, gt=0, le=10)
     whisper_model: str = "base"
+    analyze_audio: bool = Field(
+        True,
+        description="Whether to extract and transcribe audio with Whisper.",
+    )
+    max_frames: int | None = Field(
+        None,
+        gt=0,
+        description="Optional limit for the number of extracted frames to analyze.",
+    )
+    download_quality: str = Field(
+        "best[height<=480]/worst",
+        description="yt-dlp format selector. Lower quality downloads faster.",
+    )
 
 
 @app.get("/")
@@ -46,6 +59,8 @@ def analyze_uploaded_video(
     video: UploadFile = File(...),
     fps: float = Form(1.0),
     whisper_model: str = Form("base"),
+    analyze_audio: bool = Form(True),
+    max_frames: int | None = Form(None),
 ):
     if not video.filename:
         raise HTTPException(status_code=400, detail="Файл видео не передан")
@@ -68,6 +83,8 @@ def analyze_uploaded_video(
             fps=fps,
             output_dir=str(output_dir),
             whisper_model=whisper_model,
+            analyze_audio=analyze_audio,
+            max_frames=max_frames,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Ошибка анализа видео: {exc}") from exc
@@ -87,6 +104,9 @@ def analyze_video_url(payload: UrlAnalyzeRequest):
             fps=payload.fps,
             output_dir=output_dir,
             whisper_model=payload.whisper_model,
+            download_quality=payload.download_quality,
+            analyze_audio=payload.analyze_audio,
+            max_frames=payload.max_frames,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Ошибка анализа URL: {exc}") from exc

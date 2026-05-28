@@ -8,7 +8,7 @@ try:
 except ImportError:
     from moviepy.editor import VideoFileClip
 
-def download_video(url, quality="best", output="video.mp4"):
+def download_video(url, quality="best[height<=480]/worst", output="video.mp4"):
     """Скачивает видео по URL с помощью yt-dlp."""
     if os.path.exists(output):
         try:
@@ -20,13 +20,14 @@ def download_video(url, quality="best", output="video.mp4"):
         "outtmpl": output,
         "format": quality,
         "quiet": False,
-        "overwrites": True
+        "overwrites": True,
+        "noplaylist": True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
     return output
 
-def extract_frames(video_path, output_folder, frame_rate=2):
+def extract_frames(video_path, output_folder, frame_rate=2, max_frames=None):
     """Нарезает видео на кадры с заданной частотой кадров в секунду."""
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -62,6 +63,8 @@ def extract_frames(video_path, output_folder, frame_rate=2):
             cv2.imwrite(filename, frame)
             frames_paths.append((time_sec, filename))
             saved += 1
+            if max_frames is not None and saved >= max_frames:
+                break
             
         count += 1
         
