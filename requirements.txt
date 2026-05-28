@@ -1,0 +1,17 @@
+opencv-python
+yt-dlp
+requests
+tqdm
+easyocr
+ultralytics
+torch
+torchvision
+openai-whisper
+google-generativeai
+moviepy
+pandas
+matplotlib
+numpy
+fastapi
+uvicorn
+python-multipart
