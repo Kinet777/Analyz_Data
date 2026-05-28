@@ -3,7 +3,10 @@ import cv2
 import yt_dlp
 import requests
 from tqdm import tqdm
-from moviepy.editor import VideoFileClip
+try:
+    from moviepy import VideoFileClip
+except ImportError:
+    from moviepy.editor import VideoFileClip
 
 def download_video(url, quality="best", output="video.mp4"):
     """Скачивает видео по URL с помощью yt-dlp."""
@@ -71,7 +74,7 @@ def extract_audio(video_path, output_audio="audio.wav"):
     try:
         video = VideoFileClip(video_path)
         if video.audio is not None:
-            video.audio.write_audiofile(output_audio, codec='pcm_s16le', verbose=False, logger=None)
+            video.audio.write_audiofile(output_audio, codec='pcm_s16le', logger=None)
             print(f"Аудио успешно извлечено в {output_audio}")
             return output_audio
         else:
