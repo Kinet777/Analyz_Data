@@ -12,8 +12,8 @@
 | ПЗ 2: нарезка видео на изображения | `extract_frames()` в `video_utils.py` |
 | ПЗ 3: распознавание текста из потока изображений | EasyOCR в `VisionAnalyzer.analyze_frame()` |
 | ПЗ 4: извлечение звука и распознавание аудиоряда Whisper | `extract_audio()` и `AudioAnalyzer` |
-| ПЗ 5: распознавание объектов на видео YOLO | YOLOv8 в `VisionAnalyzer` |
-| ПЗ 6: распознавание объектов/сцен ResNet | ResNet50 в `VisionAnalyzer` |
+| ПЗ 5: распознавание объектов на видео YOLO | YOLOv8s в `VisionAnalyzer` |
+| ПЗ 6: классификация визуального содержимого кадра | EfficientNetV2-S в `VisionAnalyzer` |
 | ПЗ 7: распознавание объектов/смысла с помощью LLM | `LLMAnalyzer`: Gemini API при наличии `GEMINI_API_KEY`, локальный fallback без ключа |
 | ПЗ 8: обработка результатов | `PostProcessor`: дедубликация OCR-текста, склейка временных детекций объектов и классов |
 | Курсовая: единый цикл | `pipeline.py`, CLI `main.py`, HTTP API `server.py` |
@@ -26,7 +26,7 @@
 - `server.py` - FastAPI-сервер для развертывания на ВМ и приема видео через HTTP.
 - `pipeline.py` - единый сценарий анализа, общий для CLI и API.
 - `video_utils.py` - скачивание видео, нарезка на кадры, извлечение аудио.
-- `vision_analyzer.py` - EasyOCR, YOLOv8, ResNet50.
+- `vision_analyzer.py` - EasyOCR, YOLOv8s, EfficientNetV2-S.
 - `audio_analyzer.py` - Whisper и поиск триггерных слов.
 - `llm_analyzer.py` - Gemini API или локальная эвристическая классификация.
 - `postprocessor.py` - дедубликация текста, склейка детекций, генерация отчетов.
@@ -46,7 +46,7 @@
 - `source_info` - FPS, длительность, число кадров, время анализа.
 - `detections` - найденные нарушения с таймкодами, типом источника (`video` или `audio`) и подклассом.
 - `postprocessing.deduplicated_text` - OCR-текст после дедубликации.
-- `postprocessing.merged_yolo_objects` - склеенные группы объектов YOLO.
+- `postprocessing.merged_object_detections` - склеенные группы объектных детекций.
 - `output_files` - пути к созданным файлам отчета.
 
 ## Локальный запуск
@@ -83,7 +83,22 @@ export GEMINI_API_KEY="ВАШ_КЛЮЧ"
 export GEMINI_MODEL="gemini-1.5-flash"
 ```
 
-Если ключ не указан, проект все равно работает: `LLMAnalyzer` использует локальный fallback на основе результатов YOLO, ResNet и OCR.
+Если ключ не указан, проект все равно работает: `LLMAnalyzer` использует локальный fallback на основе результатов YOLO, классификатора изображения и OCR.
+
+Модели визуального анализа можно переопределить переменными окружения:
+
+```bash
+export OBJECT_DETECTOR_MODEL="yolov8s.pt"
+export IMAGE_CLASSIFIER_MODEL="efficientnet_v2_s"
+export OBJECT_CONFIDENCE_THRESHOLD="0.45"
+export IMAGE_CLASSIFIER_TOP_K="5"
+```
+
+Для совсем слабой ВМ можно временно вернуть более легкий детектор:
+
+```bash
+export OBJECT_DETECTOR_MODEL="yolov8n.pt"
+```
 
 ### 4. Запуск анализа из терминала
 
@@ -148,7 +163,7 @@ curl -X POST "http://127.0.0.1:8000/analyze-url" \
   -d '{"url":"https://rutube.ru/video/de671c5c7bdceba541ddc7d0d24c9b9c/","fps":0.2,"whisper_model":"tiny","analyze_audio":false,"max_frames":10,"download_quality":"worst"}'
 ```
 
-Параметр `max_frames` ограничивает количество кадров, которые пойдут в OCR/YOLO/ResNet/LLM.
+Параметр `max_frames` ограничивает количество кадров, которые пойдут в OCR/YOLO/классификатор изображения/LLM.
 Параметр `analyze_audio:false` отключает извлечение аудио и Whisper, что особенно полезно для
 быстрой демонстрации на слабой ВМ.
 
@@ -194,7 +209,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Первый запуск может быть долгим: Whisper, EasyOCR, YOLO и ResNet скачивают веса моделей.
+Первый запуск может быть долгим: Whisper, EasyOCR, YOLOv8s и EfficientNetV2-S скачивают веса моделей.
 
 ### 6. Создать файл окружения
 

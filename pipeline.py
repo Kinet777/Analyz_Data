@@ -110,14 +110,18 @@ def run_analysis(
 
         frames_data[time_sec] = {
             "text": v_results["text"],
+            "ocr_detections": v_results["ocr_detections"],
             "yolo_objects": v_results["yolo_objects"],
-            "resnet_scene": v_results["resnet_scene"],
+            "object_detections": v_results["object_detections"],
+            "image_classifier_labels": v_results["image_classifier_labels"],
+            "image_classifier_predictions": v_results["image_classifier_predictions"],
+            "vision_models": v_results["vision_models"],
             "llm_analysis": llm_res,
         }
 
     print("Постобработка результатов...")
     deduplicated_text = postprocessor.deduplicate_text(frames_data)
-    merged_yolo = postprocessor.merge_detections(frames_data, window_sec=3.0)
+    merged_objects = postprocessor.merge_detections(frames_data, window_sec=3.0)
 
     report_json = os.path.join(output_dir, "report.json")
     report = postprocessor.generate_report(
@@ -125,7 +129,7 @@ def run_analysis(
         frames_data,
         audio_alerts,
         deduplicated_text,
-        merged_yolo,
+        merged_objects,
         report_json,
     )
 

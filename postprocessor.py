@@ -21,11 +21,11 @@ class PostProcessor:
         return deduplicated
 
     def merge_detections(self, frames_data, window_sec=3.0):
-        """Склеивает объекты (YOLO), обнаруженные на соседних кадрах."""
+        """Склеивает объекты, обнаруженные на соседних кадрах."""
         merged = defaultdict(list)
         for time_sec, data in frames_data.items():
-            for obj in data.get("yolo_objects", []):
-                # Если obj это словарь, попробуем взять label
+            objects = data.get("object_detections") or data.get("yolo_objects", [])
+            for obj in objects:
                 if isinstance(obj, dict) and "label" in obj:
                     merged[obj["label"]].append(time_sec)
                 elif isinstance(obj, str):
@@ -36,7 +36,7 @@ class PostProcessor:
         import datetime
         return str(datetime.timedelta(seconds=int(seconds))).zfill(8)
 
-    def generate_report(self, source_info, frames_data, audio_alerts, deduplicated_text, merged_yolo, output_file="report.json"):
+    def generate_report(self, source_info, frames_data, audio_alerts, deduplicated_text, merged_objects, output_file="report.json"):
         """Формирует итоговый сводный отчет в формате TIME_BASED_REPORT."""
         
         detections = []
@@ -128,7 +128,7 @@ class PostProcessor:
             "detections": detections,
             "postprocessing": {
                 "deduplicated_text": {str(k): v for k, v in deduplicated_text.items()},
-                "merged_yolo_objects": merged_yolo,
+                "merged_object_detections": merged_objects,
             },
             "raw_summary": {
                 "frames_analyzed": len(frames_data),
@@ -164,7 +164,7 @@ class PostProcessor:
             f.write("\n## Постобработка\n")
             f.write(f"- Проанализировано кадров: {len(frames_data)}\n")
             f.write(f"- Дедублицированных текстовых фрагментов: {sum(len(v) for v in deduplicated_text.values())}\n")
-            f.write(f"- Склеенных групп объектов YOLO: {len(merged_yolo)}\n")
+            f.write(f"- Склеенных групп объектных детекций: {len(merged_objects)}\n")
 
         print(f"Markdown отчет сохранен в {md_file}")
         return report
